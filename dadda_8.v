@@ -19,8 +19,6 @@ module dadda_8(A,B,y);
     wire [0:13]s5,c5;
 
 
-
-
 // generating partial products 
 genvar i;
 genvar j;
