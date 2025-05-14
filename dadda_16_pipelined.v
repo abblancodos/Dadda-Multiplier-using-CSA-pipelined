@@ -1,4 +1,4 @@
-// A - 16 bits , B - 16 bits, Y(output) - 32 bits
+// A - 16 bits, B - 16 bits, Y(output) - 32 bits
 // Pipelined version using 8*8 dadda modules
 
 module dadda_16_pipelined(clk, rst, A, B, Y_reg);
@@ -9,10 +9,16 @@ module dadda_16_pipelined(clk, rst, A, B, Y_reg);
     
     wire [31:0] Y;
     
-    // Pipeline registers
+    // Pipeline registers for inputs
     reg [15:0] A_reg, B_reg;
+    
+    // Drag pipes for intermediate products
     wire [15:0] y11, y12, y21, y22;
-    reg [15:0] y11_reg, y12_reg, y21_reg, y22_reg;
+    reg [15:0] y11_pipe_1, y12_pipe_1, y21_pipe_1, y22_pipe_1;
+    reg [15:0] y11_pipe_2, y12_pipe_2, y21_pipe_2, y22_pipe_2;
+    reg s_1_pipe_1;
+    reg s_1_pipe_2;
+
     
     // Stage 1 sum and carry
     wire [15:0] s_1, c_1;
@@ -21,61 +27,66 @@ module dadda_16_pipelined(clk, rst, A, B, Y_reg);
     // Stage 2 carry
     wire [22:0] c_2;
     
-    
     // Instantiate 8x8 multipliers (pipelined versions)
     dadda_8_pipelined d1(.clk(clk), .rst(rst), .A(A[7:0]), .B(B[7:0]), .y(y11));
     dadda_8_pipelined d2(.clk(clk), .rst(rst), .A(A[7:0]), .B(B[15:8]), .y(y12));
     dadda_8_pipelined d3(.clk(clk), .rst(rst), .A(A[15:8]), .B(B[7:0]), .y(y21));
     dadda_8_pipelined d4(.clk(clk), .rst(rst), .A(A[15:8]), .B(B[15:8]), .y(y22));
     
-    // Pipeline stage 0: Register inputs
+    // Pipeline stage 1: Register 8x8 multiplier outputs (drag pipes)
     always @(posedge clk) begin
         if (!rst) begin
-            A_reg <= 16'b0;
-            B_reg <= 16'b0;
+            y11_pipe_1 <= 16'b0;
+            y12_pipe_1 <= 16'b0;
+            y21_pipe_1 <= 16'b0;
+            y22_pipe_1 <= 16'b0;
+            s_1_pipe_1 <= 1'b0;
         end else begin
-            A_reg <= A;
-            B_reg <= B;
+            y11_pipe_1 <= y11;
+            y12_pipe_1 <= y12;
+            y21_pipe_1 <= y21;
+            y22_pipe_1 <= y22;
+            s_1_pipe_1 <= s_1[0];
         end
     end
     
-    // Pipeline stage 1: Register 8x8 multiplier outputs
+    // Pipeline stage 2: Additional drag pipe stage
     always @(posedge clk) begin
         if (!rst) begin
-            y11_reg <= 16'b0;
-            y12_reg <= 16'b0;
-            y21_reg <= 16'b0;
-            y22_reg <= 16'b0;
+            y11_pipe_2 <= 16'b0;
+            y12_pipe_2 <= 16'b0;
+            y21_pipe_2 <= 16'b0;
+            y22_pipe_2 <= 16'b0;
+            s_1_pipe_2 <= 1'b0;
         end else begin
-            y11_reg <= y11;
-            y12_reg <= y12;
-            y21_reg <= y21;
-            y22_reg <= y22;
+            y11_pipe_2 <= y11_pipe_1;
+            y12_pipe_2 <= y12_pipe_1;
+            y21_pipe_2 <= y21_pipe_1;
+            y22_pipe_2 <= y22_pipe_1;
+            s_1_pipe_2 <= s_1_pipe_1;
         end
     end
     
     // Stage 1 - reducing from 3 to 2 (combinational)
-    assign Y[7:0] = y11_reg[7:0];
     
-    csa_dadda c_11(.A(y11_reg[8]), .B(y12_reg[0]), .Cin(y21_reg[0]), .Y(s_1[0]), .Cout(c_1[0]));
-    assign Y[8] = s_1[0];
-    csa_dadda c_12(.A(y11_reg[9]), .B(y12_reg[1]), .Cin(y21_reg[1]), .Y(s_1[1]), .Cout(c_1[1]));
-    csa_dadda c_13(.A(y11_reg[10]), .B(y12_reg[2]), .Cin(y21_reg[2]), .Y(s_1[2]), .Cout(c_1[2]));
-    csa_dadda c_14(.A(y11_reg[11]), .B(y12_reg[3]), .Cin(y21_reg[3]), .Y(s_1[3]), .Cout(c_1[3]));
-    csa_dadda c_15(.A(y11_reg[12]), .B(y12_reg[4]), .Cin(y21_reg[4]), .Y(s_1[4]), .Cout(c_1[4]));
-    csa_dadda c_16(.A(y11_reg[13]), .B(y12_reg[5]), .Cin(y21_reg[5]), .Y(s_1[5]), .Cout(c_1[5]));
-    csa_dadda c_17(.A(y11_reg[14]), .B(y12_reg[6]), .Cin(y21_reg[6]), .Y(s_1[6]), .Cout(c_1[6]));
-    csa_dadda c_18(.A(y11_reg[15]), .B(y12_reg[7]), .Cin(y21_reg[7]), .Y(s_1[7]), .Cout(c_1[7]));
-    csa_dadda c_19(.A(y22_reg[0]), .B(y12_reg[8]), .Cin(y21_reg[8]), .Y(s_1[8]), .Cout(c_1[8]));
-    csa_dadda c_110(.A(y22_reg[1]), .B(y12_reg[9]), .Cin(y21_reg[9]), .Y(s_1[9]), .Cout(c_1[9]));
-    csa_dadda c_111(.A(y22_reg[2]), .B(y12_reg[10]), .Cin(y21_reg[10]), .Y(s_1[10]), .Cout(c_1[10]));
-    csa_dadda c_112(.A(y22_reg[3]), .B(y12_reg[11]), .Cin(y21_reg[11]), .Y(s_1[11]), .Cout(c_1[11]));
-    csa_dadda c_113(.A(y22_reg[4]), .B(y12_reg[12]), .Cin(y21_reg[12]), .Y(s_1[12]), .Cout(c_1[12]));
-    csa_dadda c_114(.A(y22_reg[5]), .B(y12_reg[13]), .Cin(y21_reg[13]), .Y(s_1[13]), .Cout(c_1[13]));
-    csa_dadda c_115(.A(y22_reg[6]), .B(y12_reg[14]), .Cin(y21_reg[14]), .Y(s_1[14]), .Cout(c_1[14]));
-    csa_dadda c_116(.A(y22_reg[7]), .B(y12_reg[15]), .Cin(y21_reg[15]), .Y(s_1[15]), .Cout(c_1[15]));
+    csa_dadda c_11(.A(y11_pipe_1[8]), .B(y12_pipe_1[0]), .Cin(y21_pipe_1[0]), .Y(s_1[0]), .Cout(c_1[0]));
+    csa_dadda c_12(.A(y11_pipe_1[9]), .B(y12_pipe_1[1]), .Cin(y21_pipe_1[1]), .Y(s_1[1]), .Cout(c_1[1]));
+    csa_dadda c_13(.A(y11_pipe_1[10]), .B(y12_pipe_1[2]), .Cin(y21_pipe_1[2]), .Y(s_1[2]), .Cout(c_1[2]));
+    csa_dadda c_14(.A(y11_pipe_1[11]), .B(y12_pipe_1[3]), .Cin(y21_pipe_1[3]), .Y(s_1[3]), .Cout(c_1[3]));
+    csa_dadda c_15(.A(y11_pipe_1[12]), .B(y12_pipe_1[4]), .Cin(y21_pipe_1[4]), .Y(s_1[4]), .Cout(c_1[4]));
+    csa_dadda c_16(.A(y11_pipe_1[13]), .B(y12_pipe_1[5]), .Cin(y21_pipe_1[5]), .Y(s_1[5]), .Cout(c_1[5]));
+    csa_dadda c_17(.A(y11_pipe_1[14]), .B(y12_pipe_1[6]), .Cin(y21_pipe_1[6]), .Y(s_1[6]), .Cout(c_1[6]));
+    csa_dadda c_18(.A(y11_pipe_1[15]), .B(y12_pipe_1[7]), .Cin(y21_pipe_1[7]), .Y(s_1[7]), .Cout(c_1[7]));
+    csa_dadda c_19(.A(y22_pipe_1[0]), .B(y12_pipe_1[8]), .Cin(y21_pipe_1[8]), .Y(s_1[8]), .Cout(c_1[8]));
+    csa_dadda c_110(.A(y22_pipe_1[1]), .B(y12_pipe_1[9]), .Cin(y21_pipe_1[9]), .Y(s_1[9]), .Cout(c_1[9]));
+    csa_dadda c_111(.A(y22_pipe_1[2]), .B(y12_pipe_1[10]), .Cin(y21_pipe_1[10]), .Y(s_1[10]), .Cout(c_1[10]));
+    csa_dadda c_112(.A(y22_pipe_1[3]), .B(y12_pipe_1[11]), .Cin(y21_pipe_1[11]), .Y(s_1[11]), .Cout(c_1[11]));
+    csa_dadda c_113(.A(y22_pipe_1[4]), .B(y12_pipe_1[12]), .Cin(y21_pipe_1[12]), .Y(s_1[12]), .Cout(c_1[12]));
+    csa_dadda c_114(.A(y22_pipe_1[5]), .B(y12_pipe_1[13]), .Cin(y21_pipe_1[13]), .Y(s_1[13]), .Cout(c_1[13]));
+    csa_dadda c_115(.A(y22_pipe_1[6]), .B(y12_pipe_1[14]), .Cin(y21_pipe_1[14]), .Y(s_1[14]), .Cout(c_1[14]));
+    csa_dadda c_116(.A(y22_pipe_1[7]), .B(y12_pipe_1[15]), .Cin(y21_pipe_1[15]), .Y(s_1[15]), .Cout(c_1[15]));
     
-    // Pipeline stage 2: Register stage 1 results
+    // Pipeline stage 3: Register stage 1 results
     always @(posedge clk) begin
         if (!rst) begin
             s_1_reg <= 16'b0;
@@ -103,17 +114,20 @@ module dadda_16_pipelined(clk, rst, A, B, Y_reg);
     csa_dadda c_213(.A(s_1_reg[13]), .B(c_1_reg[12]), .Cin(c_2[11]), .Y(Y[21]), .Cout(c_2[12]));
     csa_dadda c_214(.A(s_1_reg[14]), .B(c_1_reg[13]), .Cin(c_2[12]), .Y(Y[22]), .Cout(c_2[13]));
     csa_dadda c_215(.A(s_1_reg[15]), .B(c_1_reg[14]), .Cin(c_2[13]), .Y(Y[23]), .Cout(c_2[14]));
-    csa_dadda c_216(.A(y22_reg[8]), .B(c_1_reg[15]), .Cin(c_2[14]), .Y(Y[24]), .Cout(c_2[15]));
+    csa_dadda c_216(.A(y22_pipe_2[8]), .B(c_1_reg[15]), .Cin(c_2[14]), .Y(Y[24]), .Cout(c_2[15]));
     
-    HA h2(.a(y22_reg[9]), .b(c_2[15]), .Sum(Y[25]), .Cout(c_2[16]));
-    HA h3(.a(y22_reg[10]), .b(c_2[16]), .Sum(Y[26]), .Cout(c_2[17]));
-    HA h4(.a(y22_reg[11]), .b(c_2[17]), .Sum(Y[27]), .Cout(c_2[18]));
-    HA h5(.a(y22_reg[12]), .b(c_2[18]), .Sum(Y[28]), .Cout(c_2[19]));
-    HA h6(.a(y22_reg[13]), .b(c_2[19]), .Sum(Y[29]), .Cout(c_2[20]));
-    HA h7(.a(y22_reg[14]), .b(c_2[20]), .Sum(Y[30]), .Cout(c_2[21]));
-    HA h8(.a(y22_reg[15]), .b(c_2[21]), .Sum(Y[31]), .Cout(c_2[22]));
+    HA h2(.a(y22_pipe_2[9]), .b(c_2[15]), .Sum(Y[25]), .Cout(c_2[16]));
+    HA h3(.a(y22_pipe_2[10]), .b(c_2[16]), .Sum(Y[26]), .Cout(c_2[17]));
+    HA h4(.a(y22_pipe_2[11]), .b(c_2[17]), .Sum(Y[27]), .Cout(c_2[18]));
+    HA h5(.a(y22_pipe_2[12]), .b(c_2[18]), .Sum(Y[28]), .Cout(c_2[19]));
+    HA h6(.a(y22_pipe_2[13]), .b(c_2[19]), .Sum(Y[29]), .Cout(c_2[20]));
+    HA h7(.a(y22_pipe_2[14]), .b(c_2[20]), .Sum(Y[30]), .Cout(c_2[21]));
+    HA h8(.a(y22_pipe_2[15]), .b(c_2[21]), .Sum(Y[31]), .Cout(c_2[22]));
+
+    assign Y[8] = s_1_pipe_2;
+    assign Y[7:0] = y11_pipe_2[7:0];
     
-    // Pipeline stage 3: Register final output
+    // Pipeline stage 4: Register final output
     always @(posedge clk) begin
         if (!rst) begin
             Y_reg <= 32'b0;

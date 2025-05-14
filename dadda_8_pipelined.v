@@ -1,7 +1,7 @@
 // dadda multiplier
 // A - 8 bits , B - 8bits, y(output) - 16bits
 
-module dadda_8_pipelined(clk, rst, A,B,y);
+module dadda_8_pipelined(clk, rst, A, B, y);
     
     input clk;
     input rst;
@@ -26,16 +26,16 @@ module dadda_8_pipelined(clk, rst, A,B,y);
 reg [0:14] s1_pp_drag_pipe_1;
 reg [0:27] s2_pp_drag_pipe_1, s2_pp_drag_pipe_2;
 reg [0:6] s3_pp_drag_pipe_1, s3_pp_drag_pipe_2, s3_pp_drag_pipe_3;
-reg [0:8] s4_pp_drag_pipe_1,s4_pp_drag_pipe_2, s4_pp_drag_pipe_3, s4_pp_drag_pipe_4;
+reg [0:8] s4_pp_drag_pipe_1, s4_pp_drag_pipe_2, s4_pp_drag_pipe_3, s4_pp_drag_pipe_4;
 reg [0:4] s5_pp_drag_pipe_1, s5_pp_drag_pipe_2, s5_pp_drag_pipe_3, s5_pp_drag_pipe_4, s5_pp_drag_pipe_5;
 
 // Sum stages output pipes 
 
 reg [0:5] s1_pipe,c1_pipe;
 reg [0:13] s2_pipe,c2_pipe;
+reg [0:13] s2_drag_pipe, c2_drag_pipe;
 reg [0:9] s3_pipe, c3_pipe;
 reg [0:11] s4_pipe, c4_pipe;
-reg [0:13] s5_pipe, c5_pipe;
 
 
 // generating partial products 
@@ -100,13 +100,13 @@ end
     csa_dadda c41(.A(s3_pipe[0]),.B(s4_pp_drag_pipe_4[6]),.Cin(s4_pp_drag_pipe_4[5]),.Y(s4[1]),.Cout(c4[1]));
     csa_dadda c42(.A(c3_pipe[0]),.B(s3_pipe[1]),.Cin(s4_pp_drag_pipe_4[4]),.Y(s4[2]),.Cout(c4[2]));
     csa_dadda c43(.A(c3_pipe[1]),.B(s3_pipe[2]),.Cin(s4_pp_drag_pipe_4[3]),.Y(s4[3]),.Cout(c4[3]));
-    csa_dadda c44(.A(c3_pipe[2]),.B(s3_pipe[3]),.Cin(s2_pipe[4]),.Y(s4[4]),.Cout(c4[4]));
-    csa_dadda c45(.A(c3_pipe[3]),.B(s3_pipe[4]),.Cin(s2_pipe[6]),.Y(s4[5]),.Cout(c4[5]));
-    csa_dadda c46(.A(c3_pipe[4]),.B(s3_pipe[5]),.Cin(s2_pipe[8]),.Y(s4[6]),.Cout(c4[6]));
-    csa_dadda c47(.A(c3_pipe[5]),.B(s3_pipe[6]),.Cin(s2_pipe[10]),.Y(s4[7]),.Cout(c4[7]));
-    csa_dadda c48(.A(c3_pipe[6]),.B(s3_pipe[7]),.Cin(s2_pipe[12]),.Y(s4[8]),.Cout(c4[8]));
+    csa_dadda c44(.A(c3_pipe[2]),.B(s3_pipe[3]),.Cin(s2_drag_pipe[4]),.Y(s4[4]),.Cout(c4[4]));
+    csa_dadda c45(.A(c3_pipe[3]),.B(s3_pipe[4]),.Cin(s2_drag_pipe[6]),.Y(s4[5]),.Cout(c4[5]));
+    csa_dadda c46(.A(c3_pipe[4]),.B(s3_pipe[5]),.Cin(s2_drag_pipe[8]),.Y(s4[6]),.Cout(c4[6]));
+    csa_dadda c47(.A(c3_pipe[5]),.B(s3_pipe[6]),.Cin(s2_drag_pipe[10]),.Y(s4[7]),.Cout(c4[7]));
+    csa_dadda c48(.A(c3_pipe[6]),.B(s3_pipe[7]),.Cin(s2_drag_pipe[12]),.Y(s4[8]),.Cout(c4[8]));
     csa_dadda c49(.A(c3_pipe[7]),.B(s3_pipe[8]),.Cin(s4_pp_drag_pipe_4[2]),.Y(s4[9]),.Cout(c4[9]));
-    csa_dadda c410(.A(c3_pipe[8]),.B(s3_pipe[9]),.Cin(c2_pipe[13]),.Y(s4[10]),.Cout(c4[10]));
+    csa_dadda c410(.A(c3_pipe[8]),.B(s3_pipe[9]),.Cin(c2_drag_pipe[13]),.Y(s4[10]),.Cout(c4[10]));
     csa_dadda c411(.A(c3_pipe[9]),.B(s4_pp_drag_pipe_4[1]),.Cin(s4_pp_drag_pipe_4[0]),.Y(s4[11]),.Cout(c4[11]));
 
 // Stage 5 - reducing from 2 to 1 (using pipelined inputs and last pipe for each stage)
@@ -132,9 +132,9 @@ end
 // First stage pipeline always block with reset
 always @(posedge clk) begin
     if (!rst) begin
-        s1_pp_drag_pipe_1 <= 15'b000000000000000;
-        s1_pipe <= 6'b000000;
-        c1_pipe <= 6'b000000;
+        s1_pp_drag_pipe_1 <= 15'b0;
+        s1_pipe <= 6'b0;
+        c1_pipe <= 6'b0;
     end else begin
         // First pipe captures partial products
         s1_pp_drag_pipe_1[14] <= gen_pp[6][0];  // h1.a
@@ -161,10 +161,10 @@ end
 // Second stage pipeline always block with reset
 always @(posedge clk) begin
     if (!rst) begin
-        s2_pp_drag_pipe_1 <= 28'b0000000000000000000000000000;
-        s2_pp_drag_pipe_2 <= 28'b0000000000000000000000000000;
-        s2_pipe <= 14'b00000000000000;
-        c2_pipe <= 14'b00000000000000;
+        s2_pp_drag_pipe_1 <= 28'b0;
+        s2_pp_drag_pipe_2 <= 28'b0;
+        s2_pipe <= 14'b0;
+        c2_pipe <= 14'b0;
     end else begin
         // First pipe captures partial products
         s2_pp_drag_pipe_1[27] <= gen_pp[4][0];
@@ -230,6 +230,8 @@ always @(posedge clk) begin
         
         s3_pipe <= s3;
         c3_pipe <= c3;
+
+
     end
 end
 
@@ -242,6 +244,8 @@ always @(posedge clk) begin
         s4_pp_drag_pipe_4 <= 8'b00000000;
         s4_pipe <= 12'b000000000000;
         c4_pipe <= 12'b000000000000;
+        s2_drag_pipe <= 14'b0;
+        c2_drag_pipe <= 14'b0;
     end else begin
         // First pipe captures partial products
         s4_pp_drag_pipe_1[8] <= gen_pp[2][0];
@@ -265,6 +269,10 @@ always @(posedge clk) begin
         
         s4_pipe <= s4;
         c4_pipe <= c4;
+
+        s2_drag_pipe <= s2_pipe;
+        c2_drag_pipe <= c2_pipe;
+
     end
 end
 
